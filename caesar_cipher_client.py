@@ -12,7 +12,6 @@ class CaeserCypherClient:
         
         self.client_socket = None
         self.connected = False
-        self.in_chat = False
         
         self.setup_gui()
 
@@ -43,11 +42,17 @@ class CaeserCypherClient:
         
         message_frame = tk.LabelFrame(self.root, text="Message", padx=10, pady=10)
         message_frame.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+        timer_frame = tk.LabelFrame(message_frame, text="Time", padx=2, pady=2)
+        timer_frame.pack(fill=tk.NONE,anchor=tk.NE)
         
+        self.timer = tk.Label(timer_frame, width=5, font=('Arial', 12))
+        self.timer.config(text="00:00",fg="black")
+        self.timer.pack( pady=2,side=tk.RIGHT)
+
         self.message_label = tk.Label(message_frame, text="Waiting to connect...", 
                                       wraplength=600, justify=tk.LEFT, font=('Arial', 12))
         self.message_label.pack(pady=10)
-
+        
         answer_frame = tk.Frame(message_frame)
         answer_frame.pack(pady=10)
         
@@ -62,7 +67,7 @@ class CaeserCypherClient:
         score_frame = tk.LabelFrame(self.root, text="Scoreboard", padx=10, pady=10)
         score_frame.pack(padx=10, pady=5, fill=tk.BOTH)
         
-        self.scoreboard_text = scrolledtext.ScrolledText(score_frame, height=6, width=80)
+        self.scoreboard_text = scrolledtext.ScrolledText(score_frame, height=6, width=80, state=tk.DISABLED)
         self.scoreboard_text.pack()
         
         tk.Label(self.root, text="Activity Log:").pack()
@@ -122,6 +127,8 @@ class CaeserCypherClient:
             self.ip_entry.config(state=tk.DISABLED)
             self.port_entry.config(state=tk.DISABLED)
             self.name_entry.config(state=tk.DISABLED)
+            self.timer.config(text="00:00",fg="black")
+            
             
   
             threading.Thread(target=self.receive_messages, daemon=True).start()
@@ -193,6 +200,20 @@ class CaeserCypherClient:
         self.submit_btn.config(state=tk.NORMAL)
         
         self.log(f"Message {message_num} received")
+        if hasattr(self, 'timer_job'):
+         self.root.after_cancel(self.timer_job)
+        self.countDown(message['time_limit'])
+
+    def countDown(self,seconds):
+        if seconds >= 0 and self.in_game:
+            self.timer.config(fg="black") 
+            m, s = divmod(seconds, 60)         
+            timeFormat = "{:02d}:{:02d}".format( m, s)
+            self.timer.config(text=timeFormat)
+            self.timer_job =self.root.after(1000, self.countDown, seconds - 1)
+        else:
+            self.timer.config(fg="red")
+            self.submit_btn.config(state=tk.DISABLED)
 
     def submit_answer(self):
         answer = self.answer_entry.get().strip()
@@ -200,7 +221,7 @@ class CaeserCypherClient:
         if not answer:
             messagebox.showwarning("Warning", "Please enter an answer")
             return
-            
+           
         self.submit_btn.config(state=tk.DISABLED)
         
         message = {
@@ -233,6 +254,7 @@ class CaeserCypherClient:
             self.log(f"You answered message {message_num}: WRONG. Correct answer was: {correct_answer}")
 
     def show_game_end(self, message):
+        self.timer.config(text="00:00",fg="black")
         self.in_game = False
         rankings = message['rankings']
         
@@ -250,6 +272,7 @@ class CaeserCypherClient:
             self.disconnect()
     
     def update_scoreboard(self, rankings):
+        self.scoreboard_text.config(state=tk.NORMAL)
         self.scoreboard_text.delete(1.0, tk.END)
         self.scoreboard_text.insert(tk.END, "Current Scores:\n")
         self.scoreboard_text.insert(tk.END, "-" * 40 + "\n")
@@ -257,6 +280,7 @@ class CaeserCypherClient:
         for rank_info in rankings:
             self.scoreboard_text.insert(tk.END, 
                 f"{rank_info['rank']}. {rank_info['name']} - {rank_info['score']} points\n")
+        self.scoreboard_text.config(state=tk.DISABLED)
 
     def disconnect(self):
         if self.connected:
@@ -281,11 +305,13 @@ class CaeserCypherClient:
         
         self.answer_entry.config(state=tk.NORMAL)
         self.submit_btn.config(state=tk.DISABLED)
-
+        self.scoreboard_text.config(state=tk.NORMAL)
         self.scoreboard_text.delete(1.0, tk.END)
         self.scoreboard_text.insert(tk.END, "Current Scores:\n")
         self.scoreboard_text.insert(tk.END, "-" * 40 + "\n")
+        self.scoreboard_text.config(state=tk.DISABLED)
         self.message_label.config(text="Waiting to connect...") 
+        self.timer.config(text="00:00",fg="black")
  
     def on_closing(self):
         if self.connected:

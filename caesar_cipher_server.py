@@ -57,7 +57,13 @@ class CaesarServer:
         self.shift_entry = tk.Entry(shift_frame, width=10)
         self.shift_entry.pack(side=tk.LEFT, padx=5)
 
-        
+        time_frame = tk.Frame(self.root)
+        time_frame.pack(pady=5)
+
+        tk.Label(time_frame, text="Time Limit (seconds):").pack(side=tk.LEFT)
+        self.time_entry = tk.Entry(time_frame, width=10)
+        self.time_entry.pack(side=tk.RIGHT, padx=5)
+
         self.start_game_btn = tk.Button(self.root, text="Start Game", 
                                         command=self.start_game, state=tk.DISABLED)
         self.start_game_btn.pack(pady=10)
@@ -65,7 +71,7 @@ class CaesarServer:
         score_frame = tk.LabelFrame(self.root, text="Scoreboard", padx=10, pady=10)
         score_frame.pack(padx=10, pady=5, fill=tk.BOTH)
         
-        self.scoreboard_text = scrolledtext.ScrolledText(score_frame, height=6, width=80)
+        self.scoreboard_text = scrolledtext.ScrolledText(score_frame, height=6, width=80, state=tk.DISABLED)
         self.scoreboard_text.pack()
 
         tk.Label(self.root, text="Server Log:").pack()
@@ -108,12 +114,16 @@ class CaesarServer:
         if int(shift_str) <= 0:
             messagebox.showwarning("Warning", "Please enter a positive shift value")
             return
+        if not self.time_entry.get().isdigit() or int(self.time_entry.get()) <= 0:
+            messagebox.showwarning("Warning", "Please enter a valid positive number for time limit")
+            return
         self.messages = []
         i = 0
         while i < len(lines):
             message = {
                 'message': lines[i].strip(),
-                'encrypted': self.encrypt_message(lines[i].strip(), int(shift_str))
+                'encrypted': self.encrypt_message(lines[i].strip(), int(shift_str)),
+                'time_limit': int(self.time_entry.get())
             }
             self.messages.append(message)
             i=i+1
@@ -192,10 +202,11 @@ class CaesarServer:
             self.stop_btn.config(state=tk.DISABLED)
             self.port_entry.config(state=tk.NORMAL)
             self.start_game_btn.config(state=tk.DISABLED)
+            self.scoreboard_text.config(state=tk.NORMAL)
             self.scoreboard_text.delete(1.0, tk.END)
             self.scoreboard_text.insert(tk.END, "Current Scores:\n")
             self.scoreboard_text.insert(tk.END, "-" * 40 + "\n")
-            
+            self.scoreboard_text.config(state=tk.DISABLED)
             self.log("Server stopped")
 
     def accept_connections(self):
@@ -215,7 +226,6 @@ class CaesarServer:
         if not self.messages:
             messagebox.showwarning("Warning", "Please load messages first")
             return
-            
         
         self.game_started = True
         self.current_message = 0
@@ -227,7 +237,8 @@ class CaesarServer:
         self.start_game_btn.config(state=tk.DISABLED)
         
         response = {
-            'type': 'game_start','num_messages': self.messages.__len__()
+            'type': 'game_start',
+            'num_messages': self.messages.__len__()
         }
         self.broadcast(response)
         self.send_next_message()
@@ -414,7 +425,8 @@ class CaesarServer:
         response = {
             'type': 'message',
             'message_num': self.current_message + 1,
-            'message': message['encrypted']
+            'message': message['encrypted'],
+            'time_limit': message['time_limit']
         }
         
         self.broadcast(response)
@@ -458,6 +470,7 @@ class CaesarServer:
         self.broadcast(response)
 
     def update_scoreboard(self, rankings):
+        self.scoreboard_text.config(state=tk.NORMAL)
         self.scoreboard_text.delete(1.0, tk.END)
         self.scoreboard_text.insert(tk.END, "Current Scores:\n")
         self.scoreboard_text.insert(tk.END, "-" * 40 + "\n")
@@ -465,6 +478,7 @@ class CaesarServer:
         for rank_info in rankings:
             self.scoreboard_text.insert(tk.END, 
                 f"{rank_info['rank']}. {rank_info['name']} - {rank_info['score']} points\n")
+        self.scoreboard_text.config(state=tk.DISABLED)
             
     def end_game(self):
         if self.game_ending:
@@ -530,11 +544,11 @@ class CaesarServer:
         self.current_message = 0
         self.answers_received = {}
         self.game_ending = False
-        
+        self.scoreboard_text.config(state=tk.NORMAL)
         self.scoreboard_text.delete(1.0, tk.END)
         self.scoreboard_text.insert(tk.END, "Current Scores:\n")
         self.scoreboard_text.insert(tk.END, "-" * 40 + "\n")
-            
+        self.scoreboard_text.config(state=tk.DISABLED)
         self.log("All client connections terminated")
         self.log("Server is still listening for new clients")
         
